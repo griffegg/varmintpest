@@ -35,6 +35,8 @@ logging.basicConfig(level=logging.DEBUG, format='(%(threadName)-10s) %(message)s
 # -----------------------------------
 # Constants
 # -----------------------------------
+NIGHT = 0
+DAY = 1
 
 # -----------------------------------
 # Initialize
@@ -42,12 +44,18 @@ logging.basicConfig(level=logging.DEBUG, format='(%(threadName)-10s) %(message)s
 # =======================================
 # Local classes
 # =======================================
-class _heating_element(object):
-    # Create the heating element class
+class _daylight_sensor(object):
+    # Create the daylight sensor class
+    def __init__(self):
+        self.night = NIGHT
+        self.day = DAY
 
-    def turn_on(self):
-        logging.debug("turning on the heating element")
+    def __del__(self):
+        logging.debug('daylight sensor class closed')
 
+    def read(self):
+        logging.debug("Daylight sensor indicates night time")
+        return self.night
 
 ##########################
 class varmintpest_fsm(object):
@@ -59,40 +67,43 @@ class varmintpest_fsm(object):
     # Inputs
     #=======================================
     @_machine.input()
-    def brew_button(self):
-        "The user has pressed the brew button"
+    def day_detected(self):
+        "Light sensor indicates day time"
 
     @_machine.input()
-    def put_in_beans(self):
-        "The user put in some beans"
+    def night_detected(self):
+        "Light sensor indicates night time"
 
     #=======================================
     # Outputs
     #=======================================
     @_machine.output()
-    def _heat_the_element(self):
+    def _play_bird_sounds(self):
+        logging.debug('playing bird sounds')
+        time.sleep(2.0)
 
-        self.he = _heating_element()
-        "heat up the element"
-        self.he.turn_on()
+    @_machine.output()
+    def _varmint_hunting(self):
+        logging.debug('hunting varmints')
+        time.sleep(2.0)
 
     #=======================================
     # States
     #=======================================
-    @_machine.state()
-    def have_beans(self):
-        "In this state you have beans"
-
     @_machine.state(initial=True)
-    def dont_have_beans(self):
-        "in this state, you don't have beans"
+    def daytime(self):
+        "In this state, do daytime things"
+
+    @_machine.state()
+    def nighttime(self):
+        "in this state, do night time things"
 
     #=======================================
     # Transition logic
     #=======================================
 
-    dont_have_beans.upon(put_in_beans, enter=have_beans, outputs=[])
-    have_beans.upon(brew_button, enter=dont_have_beans, outputs=[_heat_the_element])
+    daytime.upon(night_detected, enter=nighttime, outputs=[_varmint_hunting])
+    nighttime.upon(day_detected, enter=daytime, outputs=[_play_bird_sounds])
 
 ###############################################################
 # Main program
@@ -115,6 +126,8 @@ if __name__ == '__main__':
 # Create objects
 # -----------------------------------
         varmintpest = varmintpest_fsm()
+        daylight_sensor = _daylight_sensor()
+
 # -----------------------------------
 # Create and start daemons
 # -----------------------------------
@@ -128,24 +141,21 @@ if __name__ == '__main__':
 ###############################################################
 
         loop = 0    # used to determine the first time through each valve_status change
-        
+
+        daylight_status = DAY
+
         while True:         #Demo loop
 
-            # note start time
-            start_time = time.time()
+# intial state is daytime
+            if daylight_sensor.read() == NIGHT and daylight_status == DAY:
+                daylight_status = NIGHT
+                varmintpest.night_detected()    # move to night time state
+            elif daylight_sensor.read() == DAY and daylight_status == NIGHT:
+                daylight_status = DAY
+                varmintpest.day_detected()      # move to day time state
+            else:
+                time.sleep(3.0)
 
-            varmintpest.put_in_beans()
-            varmintpest.brew_button()
-            
-            time.sleep(3.0)
-
-
-            # note end time
-            end_time = time.time()
-            # work out elapsed time                                                       
-            elapsed_time = (end_time - start_time)
-            logging.debug("Elapsed time = "+str(elapsed_time))
-   
 ###########################################################
 # END
 ###########################################################
